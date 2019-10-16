@@ -14,6 +14,7 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <termios.h>
+#include <time.h>
 #include <unistd.h>
 
 extern char *__progname;
@@ -41,6 +42,13 @@ extern int opterr, optopt;
 #define MAX_ADDR_SZ     401
 #define MAX_SOCK_MSG_SZ 1024
 
+// Time to wait in seconds since the last message was received to send a PING
+// message.
+#define PING_IDLE 10
+// Time to wait in seconds since the last message was received to consider the
+// connection lost.
+#define PING_TIMEOUT 60
+
 #define MAX_NICK_SZ          19
 #define MAX_CHAT_MSG_BODY_SZ 801
 
@@ -48,13 +56,15 @@ extern int opterr, optopt;
 #define SCANF_BUSY     "BUSY"
 #define SCANF_CHAT_MSG "MSG %d %800[^\n]"  // chat msg id and body
 #define SCANF_ACK      "ACK %d"            // chat msg id
+#define SCANF_PING     "PING"
+#define SCANF_PONG     "PONG"
 #define SCANF_QUIT     "QUIT"
 
 enum input_kind {
     INPUT_NONE,
-    INPUT_EDIT,   // A control or printable character was processed
-    INPUT_QUIT,   // Ctrl + D or Ctrl + C was pressed
-    INPUT_SUBMIT  // Enter was pressed
+    INPUT_EDIT,   // printable character or supported control character
+    INPUT_QUIT,   // Ctrl + D or Ctrl + C
+    INPUT_SUBMIT  // Enter
 };
 
 enum msg_kind {
@@ -63,6 +73,8 @@ enum msg_kind {
     MSG_BUSY,      // decline a conversation
     MSG_CHAT_MSG,  // send a chat message
     MSG_ACK,       // acknowledge a received chat message
+    MSG_PING,      // test that an idle connection is still open
+    MSG_PONG,      // answer PING
     MSG_QUIT,      // quit a conversation
 };
 
@@ -102,7 +114,6 @@ struct addrinfo *parse_addr(const char *addr);
 void split_addr(char *addr, char **host, char **port);
 int accept_conn(int *sockfd, struct addrinfo *info, struct sockaddr *peer_addr,
                 socklen_t *peer_addr_sz);
-int make_socket(int domain);
 int open_conn(struct addrinfo *info, struct sockaddr *peer_addr,
               socklen_t *peer_addr_sz);
 bool peer_prompt(struct sockaddr_storage *addr, socklen_t addr_sz);
@@ -236,13 +247,30 @@ int main(int argc, char *argv[]) {
         fds_len++;
     }
 
+    time_t last_msg = time(NULL);
+    bool sent_ping = false;
+
     while (true) {
-        int ready = poll(fds, fds_len, -1);
+        int ready = poll(fds, fds_len, 1000);
         if (ready == -1) {
             fatalf_ib_flush("poll: %m\n");
         }
 
-        get_term_size();
+        time_t now = time(NULL);
+
+        if (now - last_msg > PING_TIMEOUT) {
+            fatalf_ib_flush("Lost connection to %s\n", peer_nick);
+        }
+
+        if (opt_connect == NULL && now - last_msg > PING_IDLE && !sent_ping) {
+            msg.kind = MSG_PING;
+            send_msg(connfd, &msg);
+            sent_ping = true;
+        }
+
+        if (ready > 0) {
+            get_term_size();
+        }
 
         if (fds[0].revents & POLLIN) {
             enum input_kind kind = read_input();
@@ -283,9 +311,15 @@ int main(int argc, char *argv[]) {
                 flush_input_buf();
                 printf_ib_toggle("%s has ended the conversation\n", peer_nick);
                 exit(0);
+            } else if (msg.kind == MSG_PING) {
+                msg.kind = MSG_PONG;
+                send_msg(connfd, &msg);
+            } else if (msg.kind == MSG_PONG) {
+                sent_ping = false;
             } else {
                 fatalf_ib_flush("Read an unexpected message\n");
             }
+            last_msg = now;
         }
 
         if (fds[2].revents & POLLIN) {
@@ -536,7 +570,17 @@ int accept_conn(int *sockfd, struct addrinfo *info, struct sockaddr *peer_addr,
                 socklen_t *peer_addr_sz) {
     char *cause = NULL;
     for (struct addrinfo *ai = info; ai != NULL; ai = ai->ai_next) {
-        int fd = make_socket(ai->ai_family);
+        int fd = socket(ai->ai_family, SOCK_STREAM, 0);
+        if (fd == -1) {
+            cause = "socket";
+            continue;
+        }
+
+        int opt = 1;
+        socklen_t opt_sz = sizeof(opt);
+        if (setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &opt, opt_sz) == -1) {
+            err(1, "setsockopt");
+        }
 
         if (bind(fd, ai->ai_addr, ai->ai_addrlen) == -1) {
             cause = "bind";
@@ -568,51 +612,15 @@ int accept_conn(int *sockfd, struct addrinfo *info, struct sockaddr *peer_addr,
     return connfd;
 }
 
-int make_socket(int domain) {
-    int fd = socket(domain, SOCK_STREAM, 0);
-    if (fd == -1) {
-        err(1, "socket");
-    }
-
-    // Allow quick rebinding of the same address.
-    int opt = 1;
-    socklen_t opt_sz = sizeof(opt);
-    if (setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &opt, opt_sz) == -1) {
-        err(1, "setsockopt SO_REUSEPORT");
-    }
-
-    // Enable keepalive probing.
-    opt = 1;
-    if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &opt, opt_sz) == -1) {
-        err(1, "setsockopt SO_KEEPALIVE");
-    }
-
-    // Start probing after the connection is idle for 10s.
-    opt = 10;
-    if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &opt, opt_sz) == -1) {
-        err(1, "setsockopt TCP_KEEPIDLE");
-    }
-
-    // Set a 10s interval for each probe.
-    opt = 10;
-    if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &opt, opt_sz) == -1) {
-        err(1, "setsockopt TCP_KEEPINTVL");
-    }
-
-    // Drop the connection after 5 unsuccessful probes.
-    opt = 5;
-    if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &opt, opt_sz) == -1) {
-        err(1, "setsockopt TCP_KEEPCNT");
-    }
-
-    return fd;
-}
-
 int open_conn(struct addrinfo *info, struct sockaddr *peer_addr,
               socklen_t *peer_addr_sz) {
     char *cause = NULL;
     for (struct addrinfo *ai = info; ai != NULL; ai = ai->ai_next) {
-        int fd = make_socket(ai->ai_family);
+        int fd = socket(ai->ai_family, SOCK_STREAM, 0);
+        if (fd == -1) {
+            cause = "socket";
+            continue;
+        }
 
         if (connect(fd, ai->ai_addr, ai->ai_addrlen) == -1) {
             cause = "connect";
@@ -679,6 +687,10 @@ void send_msg(int sockfd, struct msg *msg) {
         sprintf(buf, "MSG %d %s", msg->chat_msg.id, msg->chat_msg.body);
     } else if (msg->kind == MSG_ACK) {
         sprintf(buf, "ACK %d", msg->chat_msg.id);
+    } else if (msg->kind == MSG_PING) {
+        sprintf(buf, "PING");
+    } else if (msg->kind == MSG_PONG) {
+        sprintf(buf, "PONG");
     } else if (msg->kind == MSG_QUIT) {
         sprintf(buf, "QUIT");
     }
@@ -694,10 +706,6 @@ void read_msg(int sockfd, struct msg *msg) {
     char buf[MAX_SOCK_MSG_SZ] = {0};
     ssize_t sz = read(sockfd, buf, MAX_SOCK_MSG_SZ);
     if (sz == -1) {
-        if (errno == ETIMEDOUT) {
-            fatalf_ib_flush("Lost connection to %s\n",
-                            peer_nick_or_placeholder("your peer"));
-        }
         fatalf_ib_flush("read: %m\n");
     } else if (sz == 0) {
         fatalf_ib_flush("%s has disconnected unexpectedly\n",
@@ -713,6 +721,10 @@ void read_msg(int sockfd, struct msg *msg) {
         msg->kind = MSG_CHAT_MSG;
     } else if (sscanf(buf, SCANF_ACK, &msg->chat_msg.id) == 1) {
         msg->kind = MSG_ACK;
+    } else if (strncmp(buf, SCANF_PING, sizeof(SCANF_PING)) == 0) {
+        msg->kind = MSG_PING;
+    } else if (strncmp(buf, SCANF_PONG, sizeof(SCANF_PONG)) == 0) {
+        msg->kind = MSG_PONG;
     } else if (strncmp(buf, SCANF_QUIT, sizeof(SCANF_QUIT)) == 0) {
         msg->kind = MSG_QUIT;
     } else {

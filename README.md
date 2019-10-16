@@ -49,12 +49,14 @@ There are no dependencies or extra build flags needed, compile it in C99 mode (o
 
 ## Protocol
 
-The protocol is inspired by the IRC protocol and it is made up of 5 simple plain text messages meant to fit a 1kb buffer:
+The protocol is inspired by the IRC protocol and it is made up of 7 simple plain text messages meant to fit a 1kb buffer:
 
 * `NICK <nickname>` Send nickname and request or accept a conversation
 * `BUSY` Decline a conversation
 * `MSG <msg id> <msg body>` Send a chat message
 * `ACK <msg id>` Acknowledge a received chat message
+* `PING` Test that an idle connection is still open
+* `PONG` Answer PING
 * `QUIT` Quit a conversation
 
 ## TODO
