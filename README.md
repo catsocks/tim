@@ -66,6 +66,10 @@ The protocol is inspired by the IRC protocol and it is made up of 7 simple plain
 * Clearer separation of concerns in function names
 * Encryption
 
+## License
+
+This project is dedicated to the public domain under the CC0 1.0 Universal license.
+
 ## Resources
 
 * [Raw input and output](https://viewsourcecode.org/snaptoken/kilo/03.rawInputAndOutput.html) chapter of [Build Your Own Text Editor](https://viewsourcecode.org/snaptoken/kilo/index.html)
