@@ -1,6 +1,8 @@
 # tim
 
-A tiny instant messenger for the terminal in a single C file I made as an exercise to learn more about sockets and terminal emulators, meant to run with most terminal emulators on most recent Linux and BSD systems.
+A tiny instant messenger for the terminal in a single C file I made as an
+exercise to learn more about sockets and terminal emulators, meant to run with
+most terminal emulators on most recent Linux and BSD systems.
 
 ## Usage
 
@@ -20,7 +22,8 @@ A tiny instant messenger for the terminal in a single C file I made as an exerci
         -y       Assume yes when asked to start a conversation
         -h       Show this message
 
-By default tim will listen for a connection at any IPv4 address at port 7171, and use your username as your nickname unless you change it:
+By default tim will listen for a connection at any IPv4 address at port 7171,
+and use your username as your nickname unless you change it:
 
     $ tim -l -n gopher
     tim: Talk to "ferris" from 127.0.0.1? [y/N]: y
@@ -37,38 +40,46 @@ Connect to a listening tim to start a conversation:
     gopher: Bye!
     tim: ferris ended the conversation
 
-You will be informed of unacknowledged messages if any remains before the program exits:
+You will be informed of unacknowledged messages if any remains before the
+program exits:
 
     tim: Your last 1 message(s) may not have been sent
 
-Note that IPv6 addresses must be enclosed with square brackets per [RFC 2732](https://www.ietf.org/rfc/rfc2732.txt), and that the port you choose to use to listen for connections might need to be forwarded to your computer in your router so that incoming connections from outside your local network may reach the program.
+Note that IPv6 addresses must be enclosed with square brackets per
+[RFC 2732](https://www.ietf.org/rfc/rfc2732.txt), and that the port you choose
+to use to listen for connections might need to be forwarded to your computer in
+your router so that incoming connections from outside your local network may
+reach the program.
 
 ## Build
 
-There are no dependencies or extra build flags needed, compile it in C99 mode (or later) with GNU extensions, or execute the build shell script and an executable should appear which you may copy somewhere present in your PATH environment variable.
+The only requirement is a Linux or BSD system with a compiler that supports the
+C99 standard (or newer) with GNU extensions. Simply feed main.c into your
+preferred compiler or simply run the build.sh shell script.
 
 ## Protocol
 
-The protocol is inspired by the IRC protocol and it is made up of 7 simple plain text messages meant to fit a 1kb buffer:
+The protocol is inspired by the IRC protocol and it is made up of 7 simple plain
+text messages meant to fit a 1kb buffer:
 
 * `NICK <nickname>` Send nickname and request or accept a conversation
 * `BUSY` Decline a conversation
 * `MSG <msg id> <msg body>` Send a chat message
 * `ACK <msg id>` Acknowledge a received chat message
-* `PING` Test that an idle connection is still open
-* `PONG` Answer PING
+* `PING` Ask for PONG message to test that an idle connection is still open
+* `PONG` Answer a PING message
 * `QUIT` Quit a conversation
 
 ## TODO
 
-* Support more ANSI control sequences
-* Minimize global state by improving error handling and doing away with atexit
-* Clearer separation of concerns in function names
-* Encryption
+* Support more ANSI control sequences for better message text editing
+* Minimize global state, improve error handling and do away with atexit
+* Encrypt messages
 
 ## License
 
-This project is dedicated to the public domain under the CC0 1.0 Universal license.
+This project is dedicated to the public domain under the CC0 1.0 Universal
+license.
 
 ## Resources
 
