@@ -1,3 +1,3 @@
 #!/bin/bash
-
-cc -o tim tim.c -Wall -Wextra "$@"
+mkdir -p build
+cc -o build/tim tim.c -std=gnu99 -Wall -Wextra "$@"
