@@ -1,8 +1,8 @@
 # tim
 
-A tiny instant messenger for the terminal in a single C file I made as an
-exercise to learn more about sockets and terminal emulators, meant to run with
-most terminal emulators on most recent Linux and BSD systems.
+A tiny instant messenger (_tim_) for the terminal in a single C file that I made
+as an exercise to learn more about network sockets and terminal emulators, meant
+to run with most terminal emulators on most recent Linux and BSD systems.
 
 ## Usage
 
@@ -22,7 +22,7 @@ most terminal emulators on most recent Linux and BSD systems.
         -y       Assume yes when asked to start a conversation
         -h       Show this message
 
-By default tim will listen for a connection at any IPv4 address at port 7171,
+By default tim will listen for a connection on any IPv4 address at port 7171,
 and use your username as your nickname unless you change it:
 
     $ tim -l -n gopher
@@ -32,7 +32,7 @@ and use your username as your nickname unless you change it:
     gopher: Bye!
     tim: You ended the conversation
 
-Connect to a listening tim to start a conversation:
+Connect to a listening tim instance to start a conversation:
 
     $ tim -c 127.0.0.1 -n ferris
     tim: You are now talking to gopher
@@ -54,7 +54,7 @@ reach the program.
 ## Build
 
 The only requirement is a Linux or BSD system with a compiler that supports the
-C99 standard (or newer) with GNU extensions. Simply feed main.c into your
+C99 standard (or newer) with GNU extensions. Simply feed tim.c into your
 preferred compiler or simply run the build.sh shell script.
 
 ## Protocol
@@ -72,9 +72,10 @@ text messages meant to fit a 1kb buffer:
 
 ## TODO
 
-* Support more ANSI control sequences for better message text editing
 * Minimize global state, improve error handling and do away with atexit
+* Add tests
 * Encrypt messages
+* Support more ANSI control sequences for better message text editing
 
 ## License
 
