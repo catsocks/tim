@@ -18,10 +18,6 @@
 #include <time.h>
 #include <unistd.h>
 
-// getopt
-extern char *optarg;
-extern int opterr, optopt;
-
 // ANSI control sequences
 #define CHA "\033[G"  // move cursor to the beginning of the line
 #define EL  "\033[K"  // clear the line at the cursor
