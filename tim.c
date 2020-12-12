@@ -121,7 +121,7 @@ void free_chat_msg(void);
 void add_chat_msg(const char *body);
 void ack_chat_msg(int id);
 
-const char help[] =
+const char *help =
     "Tiny instant messenger\n"
     "\n"
     "Usage:\n"
