@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <ctype.h>
 #include <err.h>
 #include <errno.h>
@@ -16,8 +17,6 @@
 #include <termios.h>
 #include <time.h>
 #include <unistd.h>
-
-extern char *__progname;
 
 // getopt
 extern char *optarg;
@@ -436,7 +435,9 @@ void empty_input_buf() {
 }
 
 void progn_vfprintf(FILE *fp, const char *fmt, va_list ag) {
-    fprintf(fp, "%s: ", __progname);  // match err function printing style
+    fprintf(
+        fp, "%s: ",
+        program_invocation_short_name);  // match err function printing style
     vfprintf(fp, fmt, ag);
 }
 
